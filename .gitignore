@@ -1,0 +1,22 @@
+# secrets -- never commit these
+*.env
+.env
+.env.*
+!.env.example
+API key.txt
+*API key*
+*.key
+*secret*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node (if the Next.js/React side ever lands here)
+node_modules/
+
+# os
+.DS_Store
+Thumbs.db

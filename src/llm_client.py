@@ -141,6 +141,13 @@ load_dotenv()
 #     if part.total_duration is not None:
 #         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
 
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
+MAGENTA = "\033[35m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
 
 client = Client(
     host='https://ollama.com',
@@ -150,9 +157,13 @@ client = Client(
 messages = [
   {
     'role': 'user',
-    'content': 'Why is the sky blue?',
+    'content': 'Write abc in 3 different languages. just name the model and nothing else.',
   },
 ]
 
 for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
   print(part.message.content, end='', flush=True)
+  if part.total_duration is not None:
+
+    print(f"\n{GREEN}{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
+    print(f"{BLUE}\033[1m{round(part.total_duration * 1e-9, 1)} seconds{RESET}") 

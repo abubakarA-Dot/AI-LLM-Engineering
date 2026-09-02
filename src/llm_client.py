@@ -9,14 +9,15 @@
 
 # import argparse
 # import json
-# import os
 # from datetime import datetime, timezone
 # from pathlib import Path
 
-# from dotenv import load_dotenv
+from ollama import Client
+import os
+from dotenv import load_dotenv
 # from openai import OpenAI
 
-# load_dotenv()
+load_dotenv()
 
 # BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 # MODEL = os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b")
@@ -122,21 +123,36 @@
 #     if chunk.total_duration is not None:
 #         print(f"\n{round(chunk.total_duration * 1e-9, 1)} seconds")
 
-from ollama import Client
+
 # import tiktoken
 # enc = tiktoken.encoding_for_model("gpt-4")
 
-client = Client()
+# client = Client()
+
+# messages = [
+#   {
+#     'role': 'user',
+#     'content': 'What is ollama? just name the model and nothing else. ',
+#   },
+# ]
+
+# for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
+#     print(part.message.content, end='', flush=True)
+#     if part.total_duration is not None:
+#         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
+
+
+client = Client(
+    host='https://ollama.com',
+    headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
+)
 
 messages = [
   {
     'role': 'user',
-    'content': 'What is ollama? just name the model and nothing else. ',
+    'content': 'Why is the sky blue?',
   },
 ]
 
 for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
-    print(part.message.content, end='', flush=True)
-    if part.total_duration is not None:
-        print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
-# print(len(enc.encode(messages[0]['content'])))
+  print(part.message.content, end='', flush=True)

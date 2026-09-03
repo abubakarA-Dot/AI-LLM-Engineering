@@ -16,8 +16,18 @@ from ollama import Client
 import os
 from dotenv import load_dotenv
 # from openai import OpenAI
+from ollama import chat, list
+from ollama import ChatResponse
 
 load_dotenv()
+
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
+MAGENTA = "\033[35m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
 
 # BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 # MODEL = os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b")
@@ -109,9 +119,6 @@ load_dotenv()
 #     print(f"\n(usage logged to {LOG_PATH})")
 
 
-# from ollama import chat
-# from ollama import ChatResponse
-
 # response = chat(model='qwen2.5:7b', messages=[
 #   {
 #     'role': 'user',
@@ -141,29 +148,27 @@ load_dotenv()
 #     if part.total_duration is not None:
 #         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
 
-RED = "\033[31m"
-GREEN = "\033[32m"
-YELLOW = "\033[33m"
-BLUE = "\033[34m"
-MAGENTA = "\033[35m"
-CYAN = "\033[36m"
-RESET = "\033[0m"
+# client = Client(
+#     host='https://ollama.com',
+#     headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
+# )
 
-client = Client(
-    host='https://ollama.com',
-    headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
-)
+# messages = [
+#   {
+#     'role': 'user',
+#     'content': 'Write abc in 3 different languages.',
+#   },
+# ]
 
-messages = [
-  {
-    'role': 'user',
-    'content': 'Write abc in 3 different languages. just name the model and nothing else.',
-  },
-]
+# for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
+#   print(part.message.content, end='', flush=True)
+#   if part.total_duration is not None:
 
-for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
-  print(part.message.content, end='', flush=True)
-  if part.total_duration is not None:
+#     print(f"\n{GREEN}{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
+#     print(f"{BLUE}\033[1m{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
 
-    print(f"\n{GREEN}{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
-    print(f"{BLUE}\033[1m{round(part.total_duration * 1e-9, 1)} seconds{RESET}") 
+# list is used to get the number of available models in the ollama client. It returns a list of available models in the ollama client.
+response = list()
+print(f"{GREEN}Available models:{RESET}")
+for model in response.models:
+    print(f"{CYAN}{model}{RESET} ")

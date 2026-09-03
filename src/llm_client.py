@@ -16,7 +16,7 @@ from ollama import Client
 import os
 from dotenv import load_dotenv
 # from openai import OpenAI
-from ollama import chat, list
+from ollama import chat, list, generate, show, create, copy, delete, pull, push, embed, ps
 from ollama import ChatResponse
 
 load_dotenv()
@@ -168,7 +168,22 @@ RESET = "\033[0m"
 #     print(f"{BLUE}\033[1m{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
 
 # list is used to get the number of available models in the ollama client. It returns a list of available models in the ollama client.
-response = list()
-print(f"{GREEN}Available models:{RESET}")
-for model in response.models:
-    print(f"{CYAN}{model}{RESET} ")
+# response = list()
+# print(f"{GREEN}Available models:{RESET}")
+# for model in response.models:
+#     print(f"{CYAN}{model}{RESET} ")
+# response = generate(model='gpt-oss:120b-cloud', prompt='Why is the sky blue?', stream=True)
+# for part in response:
+#     print(part.response, end='', flush=True)
+# response = show(model='gpt-oss:120b-cloud')
+# response = pull(model='gpt-oss:120b-cloud')
+# print(response)
+
+# response = embed(model='nomic-embed-text', input='What model are you using. just name the model and nothing else.')
+# print(f"{GREEN}Embedding vector:{RESET}")
+# for embedding in response.embeddings[0]:
+#     print(f"{CYAN}{embedding}{RESET} ")
+response = embed(model='nomic-embed-text', input=['The sky is blue because of rayleigh scattering', 'Grass is green because of chlorophyll'])
+print(f"{GREEN}Embedding vector:{RESET}")
+for embedding in response.embeddings[0]:
+    print(f"{CYAN}{embedding}{RESET} ")

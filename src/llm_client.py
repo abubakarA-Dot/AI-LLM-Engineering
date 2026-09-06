@@ -12,12 +12,10 @@
 # from datetime import datetime, timezone
 # from pathlib import Path
 
-from ollama import Client
 import os
 from dotenv import load_dotenv
 # from openai import OpenAI
-from ollama import chat, list, generate, show, create, copy, delete, pull, push, embed, ps
-from ollama import ChatResponse
+from ollama import chat, list, generate, show, create, copy, delete, pull, push, embed, ps, ResponseError, ChatResponse, Client
 
 load_dotenv()
 
@@ -136,17 +134,35 @@ RESET = "\033[0m"
 
 # client = Client()
 
-# messages = [
-#   {
-#     'role': 'user',
-#     'content': 'What is ollama? just name the model and nothing else. ',
-#   },
-# ]
+messages = [
+  {
+    'role': 'user',
+    'content': 'What is ollama? just name the model and nothing else. ',
+  },
+]
+model = 'smollm2:135m'
 
-# for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
-#     print(part.message.content, end='', flush=True)
-#     if part.total_duration is not None:
-#         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
+def stream_chat(model, messages):
+    response = chat(model, messages=messages, stream=True)
+    try:
+        for part in response:
+            yield part
+    except ResponseError as e:
+        print(f"\n{GREEN}{e.status_code} status code{RESET}")
+        #   'gpt-oss:120b-cloud'
+        if e.status_code != 404:
+            raise
+        try:
+            pull(model)
+        except ResponseError as pull_err:
+            print(f"\n{RED}Could not pull '{model}': {pull_err.error}{RESET}")
+            return
+        yield from chat(model, messages=messages, stream=True)
+
+for part in stream_chat(model, messages):
+    print(part.message.content, end='', flush=True)
+    if part.total_duration is not None:
+        print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
 
 # client = Client(
 #     host='https://ollama.com',
@@ -183,7 +199,7 @@ RESET = "\033[0m"
 # print(f"{GREEN}Embedding vector:{RESET}")
 # for embedding in response.embeddings[0]:
 #     print(f"{CYAN}{embedding}{RESET} ")
-response = embed(model='nomic-embed-text', input=['The sky is blue because of rayleigh scattering', 'Grass is green because of chlorophyll'])
-print(f"{GREEN}Embedding vector:{RESET}")
-for embedding in response.embeddings[0]:
-    print(f"{CYAN}{embedding}{RESET} ")
+# response = embed(model='nomic-embed-text', input=['The sky is blue because of rayleigh scattering', 'Grass is green because of chlorophyll'])
+# print(f"{GREEN}Embedding vector:{RESET}")
+# for embedding in response.embeddings[0]:
+#     print(f"{CYAN}{embedding}{RESET} ")

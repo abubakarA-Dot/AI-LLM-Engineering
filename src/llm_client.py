@@ -15,7 +15,8 @@
 import os
 from dotenv import load_dotenv
 # from openai import OpenAI
-from ollama import chat, list, generate, show, create, copy, delete, pull, push, embed, ps, ResponseError, ChatResponse, Client
+import ollama
+from ollama import chat, generate, show, create, delete, pull, push, embed, ResponseError, ChatResponse, Client
 
 load_dotenv()
 
@@ -134,35 +135,35 @@ RESET = "\033[0m"
 
 # client = Client()
 
-messages = [
-  {
-    'role': 'user',
-    'content': 'What is ollama? just name the model and nothing else. ',
-  },
-]
-model = 'smollm2:135m'
+# messages = [
+#   {
+#     'role': 'user',
+#     'content': 'What is ollama? just name the model and nothing else. ',
+#   },
+# ]
+# model = 'smollm2:135m'
 
-def stream_chat(model, messages):
-    response = chat(model, messages=messages, stream=True)
-    try:
-        for part in response:
-            yield part
-    except ResponseError as e:
-        print(f"\n{GREEN}{e.status_code} status code{RESET}")
-        #   'gpt-oss:120b-cloud'
-        if e.status_code != 404:
-            raise
-        try:
-            pull(model)
-        except ResponseError as pull_err:
-            print(f"\n{RED}Could not pull '{model}': {pull_err.error}{RESET}")
-            return
-        yield from chat(model, messages=messages, stream=True)
+# def stream_chat(model, messages):
+#     response = chat(model, messages=messages, stream=True)
+#     try:
+#         for part in response:
+#             yield part
+#     except ResponseError as e:
+#         print(f"\n{GREEN}{e.status_code} status code{RESET}")
+#         #   'gpt-oss:120b-cloud'
+#         if e.status_code != 404:
+#             raise
+#         try:
+#             pull(model)
+#         except ResponseError as pull_err:
+#             print(f"\n{RED}Could not pull '{model}': {pull_err.error}{RESET}")
+#             return
+#         yield from chat(model, messages=messages, stream=True)
 
-for part in stream_chat(model, messages):
-    print(part.message.content, end='', flush=True)
-    if part.total_duration is not None:
-        print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
+# for part in stream_chat(model, messages):
+#     print(part.message.content, end='', flush=True)
+#     if part.total_duration is not None:
+#         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
 
 # client = Client(
 #     host='https://ollama.com',
@@ -203,3 +204,19 @@ for part in stream_chat(model, messages):
 # print(f"{GREEN}Embedding vector:{RESET}")
 # for embedding in response.embeddings[0]:
 #     print(f"{CYAN}{embedding}{RESET} ")
+
+response = chat(model='gpt-oss:120b-cloud', messages=[
+  {
+    'role': 'user',
+    'content': 'What model are you using. just name the model and nothing else. ',
+  }
+],stream= True,
+)
+for chunk in response:
+    print(f"{CYAN}{chunk.message.content}{RESET}", end='', flush=True)
+    if chunk.prompt_eval_count is not None:
+        print(f"\n{GREEN}tokens in:{chunk.prompt_eval_count}{RESET}")
+    if chunk.eval_count is not None:
+        print(f"{GREEN}tokens out:{chunk.eval_count}{RESET}")
+    if chunk.total_duration is not None:
+        print(f"\n{round(chunk.total_duration * 1e-9, 1)} seconds")

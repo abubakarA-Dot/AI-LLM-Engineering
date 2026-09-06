@@ -1,222 +1,128 @@
-# """
-# Week 1 deliverable: a CLI tool that calls a local Ollama model through its
-# OpenAI-compatible endpoint, asks it a free-text question, and forces a
-# structured JSON answer back via a tool schema (not just prose).
+"""
+Week 1 deliverable: a CLI tool that calls a local Ollama model through its
+OpenAI-compatible endpoint, asks it a free-text question, and forces a
+structured JSON answer back via a tool schema (not just prose).
 
-# Swappable later: change OLLAMA_BASE_URL / OLLAMA_CHAT_MODEL (or point base_url
-# at Anthropic/OpenAI once upgraded) without touching the request logic below.
-# """
+Swappable later: change OLLAMA_BASE_URL / OLLAMA_CHAT_MODEL in .env (or point
+base_url at Anthropic/OpenAI once upgraded) without touching the request logic
+below -- that portability is the whole point of using the openai-compatible
+client instead of Ollama's own native client.
+"""
 
-# import argparse
-# import json
-# from datetime import datetime, timezone
-# from pathlib import Path
-
+import argparse
+import json
 import os
+from datetime import datetime, timezone
+from pathlib import Path
+
 from dotenv import load_dotenv
-# from openai import OpenAI
-import ollama
-from ollama import chat, generate, show, create, delete, pull, push, embed, ResponseError, ChatResponse, Client
+from openai import OpenAI
 
 load_dotenv()
 
-RED = "\033[31m"
 GREEN = "\033[32m"
-YELLOW = "\033[33m"
-BLUE = "\033[34m"
-MAGENTA = "\033[35m"
-CYAN = "\033[36m"
+RED = "\033[31m"
 RESET = "\033[0m"
 
-# BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-# MODEL = os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b")
-# LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "usage_log.jsonl"
+BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+MODEL = os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b")
+LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "usage_log.jsonl"
 
-# # Forces the model to answer through this schema instead of free-form prose.
-# ANSWER_TOOL = {
-#     "type": "function",
-#     "function": {
-#         "name": "answer_question",
-#         "description": "Return a structured answer to the user's question.",
-#         "parameters": {
-#             "type": "object",
-#             "properties": {
-#                 "answer": {"type": "string", "description": "The answer, in plain language."},
-#                 "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
-#             },
-#             "required": ["answer", "confidence"],
-#         },
-#     },
-# }
+REQUIRED_KEYS = {"answer", "confidence"}
 
-# REQUIRED_KEYS = {"answer", "confidence"}
-
-
-# def ask(question: str) -> dict:
-#     """Calls the model, validates the tool-call arguments actually match our schema, and
-#     retries once with a stricter instruction if the model invented its own argument names
-#     instead -- observed in practice on qwen2.5:7b, which fires the right function name but
-#     doesn't always respect the declared parameters. Raises if it still doesn't comply."""
-#     client = OpenAI(base_url=BASE_URL, api_key="ollama")  # api_key is required by the SDK, unused by Ollama locally
-
-#     messages = [{"role": "user", "content": question}]
-#     for attempt in range(3):
-#         response = client.chat.completions.create(
-#             model=MODEL,
-#             messages=messages,
-#             tools=[ANSWER_TOOL],
-#             tool_choice={"type": "function", "function": {"name": "answer_question"}},
-#         )
-#         print("\n Response:", response)
-#         tool_call = response.choices[0].message.tool_calls[0]
-#         structured = json.loads(tool_call.function.arguments)
-#         log_usage(question, response.usage, valid=REQUIRED_KEYS.issubset(structured))
-
-#         if REQUIRED_KEYS.issubset(structured):
-#             return structured
-
-#         messages.append({
-#             "role": "user",
-#             "content": (
-#                 f"Your last response used the keys {list(structured.keys())}, "
-#                 f"but the schema requires exactly: answer (string), confidence (high/medium/low). "
-#                 f"Call answer_question again using exactly those two argument names."
-#             ),
-#         })
-
-#     raise ValueError(
-#         f"Model did not return the required keys {REQUIRED_KEYS} after 2 attempts -- "
-#         f"last response: {structured}. This is a real model-capability limit, not a bug -- "
-#         f"log it as a Week 5 eval finding."
-#     )
+# Forces the model to answer through this schema instead of free-form prose.
+ANSWER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "answer_question",
+        "description": "Return a structured answer to the user's question.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string", "description": "The answer, in plain language."},
+                "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+            },
+            "required": ["answer", "confidence"],
+        },
+    },
+}
 
 
-# def log_usage(question: str, usage, valid: bool) -> None:
-#     LOG_PATH.parent.mkdir(exist_ok=True)
-#     entry = {
-#         "timestamp": datetime.now(timezone.utc).isoformat(),
-#         "model": MODEL,
-#         "question": question,
-#         "schema_valid": valid,
-#         "prompt_tokens": usage.prompt_tokens,
-#         "completion_tokens": usage.completion_tokens,
-#         "total_tokens": usage.total_tokens,
-#     }
-#     with LOG_PATH.open("a", encoding="utf-8") as f:
-#         f.write(json.dumps(entry) + "\n")
+def ask(question: str) -> dict:
+    """Calls the model, validates the tool-call arguments actually match our schema, and
+    retries once with a stricter instruction if the model didn't comply -- either by inventing
+    its own argument names, or (observed in practice, even with tool_choice forced) by not
+    calling the tool at all and just answering in plain content instead. Raises if it still
+    doesn't comply after a retry."""
+    client = OpenAI(base_url=BASE_URL, api_key="ollama")  # api_key is required by the SDK, unused by Ollama locally
+
+    messages = [{"role": "user", "content": question}]
+    structured = None
+    for attempt in range(2):
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=[ANSWER_TOOL],
+            tool_choice={"type": "function", "function": {"name": "answer_question"}},
+        )
+        message = response.choices[0].message
+
+        if not message.tool_calls:
+            # tool_choice doesn't guarantee compliance -- the model sometimes just answers
+            # in plain content instead. Treat that as invalid, not a crash.
+            structured = {"_raw_content": message.content}
+            valid = False
+        else:
+            tool_call = message.tool_calls[0]
+            structured = json.loads(tool_call.function.arguments)
+            valid = REQUIRED_KEYS.issubset(structured)
+
+        log_usage(question, response.usage, valid=valid)
+
+        if valid:
+            return structured
+
+        messages.append({
+            "role": "user",
+            "content": (
+                f"Your last response used the keys {list(structured.keys())}, "
+                f"but the schema requires exactly: answer (string), confidence (high/medium/low). "
+                f"Call answer_question again using exactly those two argument names."
+            ),
+        })
+
+    raise ValueError(
+        f"Model did not return the required keys {REQUIRED_KEYS} after 2 attempts -- "
+        f"last response: {structured}. This is a real model-capability limit, not a bug -- "
+        f"log it as a Week 5 eval finding."
+    )
 
 
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Ask the local LLM a question, get a structured answer back.")
-#     parser.add_argument("question", nargs="?", help="The question to ask. Omit to be prompted interactively.")
-#     args = parser.parse_args()
-
-#     question = args.question or input("Question: ")
-#     result = ask(question)
-
-#     print(json.dumps(result, indent=2))
-#     print(f"\n(usage logged to {LOG_PATH})")
-
-
-# response = chat(model='qwen2.5:7b', messages=[
-#   {
-#     'role': 'user',
-#     'content': 'What model are you using. just name the model and nothing else. ',
-#   }
-# ], stream= True,)
-# for chunk in response:
-#     print(chunk['message']['content'], end='', flush=True)
-#     if chunk.total_duration is not None:
-#         print(f"\n{round(chunk.total_duration * 1e-9, 1)} seconds")
+def log_usage(question: str, usage, valid: bool) -> None:
+    LOG_PATH.parent.mkdir(exist_ok=True)
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "model": MODEL,
+        "question": question,
+        "schema_valid": valid,
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "total_tokens": usage.total_tokens,
+    }
+    with LOG_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
-# import tiktoken
-# enc = tiktoken.encoding_for_model("gpt-4")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ask the local LLM a question, get a structured answer back.")
+    parser.add_argument("question", nargs="?", help="The question to ask. Omit to be prompted interactively.")
+    args = parser.parse_args()
 
-# client = Client()
+    question = args.question or input("Question: ")
+    try:
+        result = ask(question)
+        print(f"{GREEN}{json.dumps(result, indent=2)}{RESET}")
+    except ValueError as e:
+        print(f"{RED}{e}{RESET}")
 
-# messages = [
-#   {
-#     'role': 'user',
-#     'content': 'What is ollama? just name the model and nothing else. ',
-#   },
-# ]
-# model = 'smollm2:135m'
-
-# def stream_chat(model, messages):
-#     response = chat(model, messages=messages, stream=True)
-#     try:
-#         for part in response:
-#             yield part
-#     except ResponseError as e:
-#         print(f"\n{GREEN}{e.status_code} status code{RESET}")
-#         #   'gpt-oss:120b-cloud'
-#         if e.status_code != 404:
-#             raise
-#         try:
-#             pull(model)
-#         except ResponseError as pull_err:
-#             print(f"\n{RED}Could not pull '{model}': {pull_err.error}{RESET}")
-#             return
-#         yield from chat(model, messages=messages, stream=True)
-
-# for part in stream_chat(model, messages):
-#     print(part.message.content, end='', flush=True)
-#     if part.total_duration is not None:
-#         print(f"\n{round(part.total_duration * 1e-9, 1)} seconds")
-
-# client = Client(
-#     host='https://ollama.com',
-#     headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
-# )
-
-# messages = [
-#   {
-#     'role': 'user',
-#     'content': 'Write abc in 3 different languages.',
-#   },
-# ]
-
-# for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
-#   print(part.message.content, end='', flush=True)
-#   if part.total_duration is not None:
-
-#     print(f"\n{GREEN}{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
-#     print(f"{BLUE}\033[1m{round(part.total_duration * 1e-9, 1)} seconds{RESET}")
-
-# list is used to get the number of available models in the ollama client. It returns a list of available models in the ollama client.
-# response = list()
-# print(f"{GREEN}Available models:{RESET}")
-# for model in response.models:
-#     print(f"{CYAN}{model}{RESET} ")
-# response = generate(model='gpt-oss:120b-cloud', prompt='Why is the sky blue?', stream=True)
-# for part in response:
-#     print(part.response, end='', flush=True)
-# response = show(model='gpt-oss:120b-cloud')
-# response = pull(model='gpt-oss:120b-cloud')
-# print(response)
-
-# response = embed(model='nomic-embed-text', input='What model are you using. just name the model and nothing else.')
-# print(f"{GREEN}Embedding vector:{RESET}")
-# for embedding in response.embeddings[0]:
-#     print(f"{CYAN}{embedding}{RESET} ")
-# response = embed(model='nomic-embed-text', input=['The sky is blue because of rayleigh scattering', 'Grass is green because of chlorophyll'])
-# print(f"{GREEN}Embedding vector:{RESET}")
-# for embedding in response.embeddings[0]:
-#     print(f"{CYAN}{embedding}{RESET} ")
-
-response = chat(model='gpt-oss:120b-cloud', messages=[
-  {
-    'role': 'user',
-    'content': 'What model are you using. just name the model and nothing else. ',
-  }
-],stream= True,
-)
-for chunk in response:
-    print(f"{CYAN}{chunk.message.content}{RESET}", end='', flush=True)
-    if chunk.prompt_eval_count is not None:
-        print(f"\n{GREEN}tokens in:{chunk.prompt_eval_count}{RESET}")
-    if chunk.eval_count is not None:
-        print(f"{GREEN}tokens out:{chunk.eval_count}{RESET}")
-    if chunk.total_duration is not None:
-        print(f"\n{round(chunk.total_duration * 1e-9, 1)} seconds")
+    print(f"\n(usage logged to {LOG_PATH})")

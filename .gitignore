@@ -14,6 +14,9 @@ __pycache__/
 .venv/
 venv/
 
+# runtime data -- local only, not source
+logs/
+
 # node (if the Next.js/React side ever lands here)
 node_modules/
 
